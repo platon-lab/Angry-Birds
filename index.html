@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bird Slingers 🎯</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+  body { background: #1a0a2e; overflow: hidden; font-family: 'Comic Sans MS', cursive; }
+  #screens { position: fixed; inset: 0; }
+  
+  /* CHARACTER SELECT */
+  #selectScreen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100vh; background: linear-gradient(180deg, #87CEEB 0%, #98D8E8 40%, #4CAF50 40%, #388E3C 100%);
+    gap: 16px;
+  }
+  #selectScreen h1 {
+    font-size: clamp(24px,6vw,42px); color: #FFF;
+    text-shadow: 3px 3px 0 #FF6B35, -1px -1px 0 #FF6B35;
+    letter-spacing: 2px;
+  }
+  #selectScreen p { color: #FFF4; font-size: 13px; text-shadow: 1px 1px 2px #000; }
+  .chars { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; padding: 0 16px; }
+  .char-btn {
+    width: 70px; height: 70px; border-radius: 50%; border: 4px solid #FFF;
+    background: rgba(255,255,255,0.2); cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    position: relative;
+  }
+  .char-btn img { width: 80%; height: 80%; object-fit: contain; }
+  .char-btn .emoji { font-size: 32px; }
+  .char-btn:hover, .char-btn.selected { border-color: #FFD700; background: rgba(255,215,0,0.3); transform: scale(1.15); box-shadow: 0 0 16px #FFD700; }
+  .char-btn .char-name { position: absolute; bottom: -20px; font-size: 10px; color: #FFF; white-space: nowrap; text-shadow: 1px 1px 2px #000; }
+  #playBtn {
+    background: linear-gradient(135deg, #FF6B35, #FF4500);
+    color: #FFF; border: 3px solid #FFF; border-radius: 30px;
+    padding: 14px 40px; font-size: 18px; font-family: inherit; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(255,69,0,0.5); transition: all 0.2s; letter-spacing: 1px;
+  }
+  #playBtn:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(255,69,0,0.7); }
+
+  /* GAME */
+  #gameScreen { display: none; position: relative; width: 100%; height: 100%; }
+  canvas { display: block; touch-action: none; }
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+    pointer-events: none; z-index: 10;
+  }
+  #hud > * { pointer-events: auto; }
+  #scoreDisplay { color: #FFD700; font-size: 18px; text-shadow: 1px 1px 3px #000; }
+  #birdsLeft { color: #FFF; font-size: 14px; text-shadow: 1px 1px 2px #000; }
+  .hud-btn {
+    background: rgba(255,255,255,0.2); color: #FFF; border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 16px; padding: 5px 12px; font-size: 12px; font-family: inherit;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .hud-btn:hover { background: rgba(255,255,255,0.35); }
+  
+  /* OVERLAY */
+  #overlay {
+    display: none; position: absolute; inset: 0;
+    background: rgba(0,0,0,0.75); flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px; z-index: 20;
+  }
+  #overlay.show { display: flex; }
+  #overlayTitle { font-size: clamp(28px,8vw,52px); color: #FFD700; text-shadow: 3px 3px 0 #000; }
+  #overlayScore { color: #FFF; font-size: 20px; text-shadow: 1px 1px 3px #000; }
+  .ov-btn {
+    background: linear-gradient(135deg, #FF6B35, #FF4500); color: #FFF;
+    border: 3px solid #FFF; border-radius: 30px; padding: 12px 32px;
+    font-size: 16px; font-family: inherit; cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255,69,0,0.5); transition: all 0.2s;
+  }
+  .ov-btn:hover { transform: scale(1.05); }
+  .ov-btn-sec {
+    background: rgba(255,255,255,0.15); color: #FFF;
+    border: 2px solid rgba(255,255,255,0.4); border-radius: 30px; padding: 10px 28px;
+    font-size: 14px; font-family: inherit; cursor: pointer; transition: all 0.2s;
+  }
+  .ov-btn-sec:hover { background: rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+
+<!-- CHARACTER SELECT -->
+<div id="selectScreen">
+  <h1>🎯 Bird Slingers!</h1>
+  <p>Обери свого персонажа</p>
+  <div class="chars" id="charGrid"></div>
+  <button id="playBtn" onclick="startGame()">▶ ГРАТИ!</button>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen">
+  <div id="hud">
+    <div>
+      <button class="hud-btn" onclick="showMenu()">☰ Меню</button>
+    </div>
+    <div id="scoreDisplay">⭐ 0</div>
+    <div id="birdsLeft">🐦 5</div>
+    <button class="hud-btn" onclick="restartLevel()">↺ Restart</button>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+  <div id="overlay">
+    <div id="overlayTitle">Win!</div>
+    <div id="overlayScore"></div>
+    <button class="ov-btn" onclick="nextLevel()">Далі ▶</button>
+    <button class="ov-btn-sec" onclick="restartLevel()">Спробувати ще</button>
+    <button class="ov-btn-sec" onclick="showMenu()">☰ Меню</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────
+const CHARS = [
+  { name: 'Tito',    file: 'Tito.png',    emoji: '🐦', color: '#E74C3C' },
+  { name: 'Smartik', file: 'Smartik.png', emoji: '💡', color: '#3498DB' },
+  { name: 'Junior',  file: 'Junior.png',  emoji: '🐣', color: '#F39C12' },
+  { name: 'Fil',     file: 'Fil.png',     emoji: '🐘', color: '#9B59B6' },
+  { name: 'Milka',   file: 'Milka.png',   emoji: '🐮', color: '#1ABC9C' },
+];
+
+const GRAVITY = 0.35;
+const MAX_PULL = 120;
+const LAUNCH_POWER = 0.14;
+const SLING_X_RATIO = 0.2;
+const SLING_Y_RATIO = 0.62;
+const BIRD_R = 22;
+const PIG_R = 20;
+
+// ─── LEVELS ───────────────────────────────────────────────────────────────
+const LEVELS = [
+  {
+    birds: 5,
+    pigs: [
+      { x: 0.7, y: 0.75 },
+    ],
+    blocks: [
+      { x: 0.65, y: 0.82, w: 0.08, h: 0.05, mat: 'wood' },
+      { x: 0.65, y: 0.77, w: 0.08, h: 0.05, mat: 'wood' },
+      { x: 0.73, y: 0.82, w: 0.05, h: 0.10, mat: 'stone' },
+    ]
+  },
+  {
+    birds: 6,
+    pigs: [
+      { x: 0.65, y: 0.72 },
+      { x: 0.80, y: 0.75 },
+    ],
+    blocks: [
+      { x: 0.60, y: 0.82, w: 0.10, h: 0.05, mat: 'wood' },
+      { x: 0.60, y: 0.77, w: 0.10, h: 0.05, mat: 'glass' },
+      { x: 0.60, y: 0.72, w: 0.10, h: 0.05, mat: 'wood' },
+      { x: 0.75, y: 0.82, w: 0.06, h: 0.10, mat: 'stone' },
+      { x: 0.75, y: 0.72, w: 0.06, h: 0.05, mat: 'wood' },
+    ]
+  },
+  {
+    birds: 7,
+    pigs: [
+      { x: 0.60, y: 0.72 },
+      { x: 0.72, y: 0.72 },
+      { x: 0.84, y: 0.75 },
+    ],
+    blocks: [
+      { x: 0.55, y: 0.82, w: 0.12, h: 0.05, mat: 'glass' },
+      { x: 0.55, y: 0.77, w: 0.06, h: 0.05, mat: 'wood' },
+      { x: 0.61, y: 0.77, w: 0.06, h: 0.05, mat: 'stone' },
+      { x: 0.55, y: 0.72, w: 0.12, h: 0.05, mat: 'glass' },
+      { x: 0.68, y: 0.82, w: 0.10, h: 0.10, mat: 'stone' },
+      { x: 0.68, y: 0.72, w: 0.10, h: 0.05, mat: 'wood' },
+      { x: 0.80, y: 0.82, w: 0.08, h: 0.12, mat: 'stone' },
+    ]
+  },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────
+let selectedChar = 0;
+let charImages = [];
+let currentLevel = 0;
+let score = 0;
+let game = null;
+
+// ─── LOAD CHAR IMAGES ─────────────────────────────────────────────────────
+function loadCharImages(cb) {
+  let loaded = 0;
+  charImages = CHARS.map((c, i) => {
+    const img = new Image();
+    img.onload = () => { loaded++; if (loaded === CHARS.length) cb(); };
+    img.onerror = () => { loaded++; if (loaded === CHARS.length) cb(); };
+    img.src = c.file;
+    return img;
+  });
+}
+
+// ─── BUILD SELECT SCREEN ───────────────────────────────────────────────────
+function buildSelectScreen() {
+  const grid = document.getElementById('charGrid');
+  grid.innerHTML = '';
+  CHARS.forEach((c, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'char-btn' + (i === selectedChar ? ' selected' : '');
+    btn.onclick = () => { selectedChar = i; document.querySelectorAll('.char-btn').forEach((b,j) => b.classList.toggle('selected', j===i)); };
+    const img = charImages[i];
+    if (img && img.complete && img.naturalWidth > 0) {
+      const im = document.createElement('img'); im.src = c.file; btn.appendChild(im);
+    } else {
+      const em = document.createElement('span'); em.className = 'emoji'; em.textContent = c.emoji; btn.appendChild(em);
+    }
+    const nm = document.createElement('span'); nm.className = 'char-name'; nm.textContent = c.name; btn.appendChild(nm);
+    grid.appendChild(btn);
+  });
+}
+
+function startGame() {
+  document.getElementById('selectScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'block';
+  currentLevel = 0; score = 0;
+  launchLevel();
+}
+
+function showMenu() {
+  if (game) { game.stop(); game = null; }
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('selectScreen').style.display = 'flex';
+  buildSelectScreen();
+}
+
+function restartLevel() {
+  document.getElementById('overlay').classList.remove('show');
+  if (game) game.stop();
+  launchLevel();
+}
+
+function nextLevel() {
+  document.getElementById('overlay').classList.remove('show');
+  currentLevel = (currentLevel + 1) % LEVELS.length;
+  if (game) game.stop();
+  launchLevel();
+}
+
+function launchLevel() {
+  const canvas = document.getElementById('gameCanvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  game = new Game(canvas, LEVELS[currentLevel], CHARS[selectedChar], charImages[selectedChar]);
+  game.start();
+}
+
+// ─── GAME CLASS ───────────────────────────────────────────────────────────
+class Game {
+  constructor(canvas, levelData, charData, charImg) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.W = canvas.width;
+    this.H = canvas.height;
+    this.levelData = levelData;
+    this.charData = charData;
+    this.charImg = (charImg && charImg.naturalWidth > 0) ? charImg : null;
+    this.running = false;
+    this.raf = null;
+
+    // Sling position
+    this.slingX = this.W * SLING_X_RATIO;
+    this.slingY = this.H * SLING_Y_RATIO;
+
+    this.score = score;
+    this.initLevel();
+    this.bindInput();
+  }
+
+  initLevel() {
+    const ld = this.levelData;
+    this.birdsLeft = ld.birds;
+    this.blocks = ld.blocks.map(b => ({
+      x: b.x * this.W, y: b.y * this.H,
+      w: b.w * this.W, h: b.h * this.H,
+      mat: b.mat,
+      hp: b.mat === 'stone' ? 3 : b.mat === 'wood' ? 2 : 1,
+      alive: true,
+    }));
+    this.pigs = ld.pigs.map(p => ({
+      x: p.x * this.W, y: p.y * this.H,
+      r: PIG_R, hp: 3, alive: true,
+    }));
+
+    this.bird = null; // current flying bird
+    this.trail = [];
+    this.particles = [];
+    this.dragging = false;
+    this.dragX = this.slingX;
+    this.dragY = this.slingY;
+    this.launched = false;
+    this.waitingBird = true; // ready to place bird on sling
+
+    this.groundY = this.H * 0.87;
+    this.updateHUD();
+  }
+
+  updateHUD() {
+    document.getElementById('scoreDisplay').textContent = '⭐ ' + this.score;
+    document.getElementById('birdsLeft').textContent = this.charData.emoji + ' ' + this.birdsLeft;
+  }
+
+  // ── INPUT ──
+  bindInput() {
+    const c = this.canvas;
+    this._onTouchStart = e => { e.preventDefault(); const t = e.touches[0]; this.pointerDown(t.clientX, t.clientY); };
+    this._onTouchMove  = e => { e.preventDefault(); const t = e.touches[0]; this.pointerMove(t.clientX, t.clientY); };
+    this._onTouchEnd   = e => { e.preventDefault(); this.pointerUp(); };
+    this._onMouseDown  = e => this.pointerDown(e.clientX, e.clientY);
+    this._onMouseMove  = e => { if (this.dragging) this.pointerMove(e.clientX, e.clientY); };
+    this._onMouseUp    = e => this.pointerUp();
+    c.addEventListener('touchstart', this._onTouchStart, { passive: false });
+    c.addEventListener('touchmove',  this._onTouchMove,  { passive: false });
+    c.addEventListener('touchend',   this._onTouchEnd,   { passive: false });
+    c.addEventListener('mousedown',  this._onMouseDown);
+    window.addEventListener('mousemove', this._onMouseMove);
+    window.addEventListener('mouseup',   this._onMouseUp);
+  }
+
+  unbindInput() {
+    const c = this.canvas;
+    c.removeEventListener('touchstart', this._onTouchStart);
+    c.removeEventListener('touchmove',  this._onTouchMove);
+    c.removeEventListener('touchend',   this._onTouchEnd);
+    c.removeEventListener('mousedown',  this._onMouseDown);
+    window.removeEventListener('mousemove', this._onMouseMove);
+    window.removeEventListener('mouseup',   this._onMouseUp);
+  }
+
+  pointerDown(px, py) {
+    if (!this.waitingBird) return;
+    const dx = px - this.slingX, dy = py - this.slingY;
+    if (Math.sqrt(dx*dx+dy*dy) < 50) {
+      this.dragging = true;
+      this.dragX = px; this.dragY = py;
+    }
+  }
+
+  pointerMove(px, py) {
+    if (!this.dragging) return;
+    const dx = px - this.slingX, dy = py - this.slingY;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if (dist > MAX_PULL) {
+      this.dragX = this.slingX + dx/dist*MAX_PULL;
+      this.dragY = this.slingY + dy/dist*MAX_PULL;
+    } else {
+      this.dragX = px; this.dragY = py;
+    }
+  }
+
+  pointerUp() {
+    if (!this.dragging) return;
+    this.dragging = false;
+    const dx = this.slingX - this.dragX;
+    const dy = this.slingY - this.dragY;
+    if (Math.sqrt(dx*dx+dy*dy) < 10) return;
+    // launch
+    this.birdsLeft--;
+    this.updateHUD();
+    this.bird = {
+      x: this.dragX, y: this.dragY,
+      vx: dx * LAUNCH_POWER,
+      vy: dy * LAUNCH_POWER,
+      r: BIRD_R, alive: true
+    };
+    this.trail = [];
+    this.launched = true;
+    this.waitingBird = false;
+    this.dragX = this.slingX; this.dragY = this.slingY;
+  }
+
+  // ── LOOP ──
+  start() {
+    this.running = true;
+    const loop = () => {
+      if (!this.running) return;
+      this.update();
+      this.draw();
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  stop() {
+    this.running = false;
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.unbindInput();
+  }
+
+  // ── UPDATE ──
+  update() {
+    this.updateParticles();
+    if (!this.bird) return;
+    if (!this.bird.alive) {
+      // wait a bit then next bird or end
+      if (!this._birdDeadTimer) this._birdDeadTimer = 60;
+      this._birdDeadTimer--;
+      if (this._birdDeadTimer <= 0) {
+        this._birdDeadTimer = 0;
+        this.bird = null;
+        this.launched = false;
+        this.checkEnd();
+      }
+      return;
+    }
+
+    // physics
+    this.bird.vy += GRAVITY;
+    this.bird.x += this.bird.vx;
+    this.bird.y += this.bird.vy;
+
+    // trail
+    this.trail.push({ x: this.bird.x, y: this.bird.y });
+    if (this.trail.length > 20) this.trail.shift();
+
+    // ground
+    if (this.bird.y + this.bird.r >= this.groundY) {
+      this.bird.y = this.groundY - this.bird.r;
+      this.bird.vy *= -0.3;
+      this.bird.vx *= 0.7;
+      if (Math.abs(this.bird.vy) < 1) { this.bird.alive = false; }
+      this.spawnParticles(this.bird.x, this.groundY, '#A0522D', 6);
+    }
+
+    // out of screen
+    if (this.bird.x > this.W + 50 || this.bird.x < -100) {
+      this.bird.alive = false;
+    }
+
+    // block collisions
+    for (const bl of this.blocks) {
+      if (!bl.alive) continue;
+      if (this.rectCircle(bl, this.bird)) {
+        bl.hp--;
+        this.score += 10;
+        if (bl.hp <= 0) { bl.alive = false; this.score += 30; }
+        this.spawnParticles(this.bird.x, this.bird.y, this.matColor(bl.mat), 8);
+        // bounce
+        this.bird.vx *= -0.4;
+        this.bird.vy *= -0.5;
+        this.updateHUD();
+      }
+    }
+
+    // pig collisions
+    for (const pg of this.pigs) {
+      if (!pg.alive) continue;
+      const dx = this.bird.x - pg.x, dy = this.bird.y - pg.y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if (dist < this.bird.r + pg.r) {
+        pg.hp--;
+        this.score += 50;
+        if (pg.hp <= 0) { pg.alive = false; this.score += 200; this.spawnParticles(pg.x, pg.y, '#FFD700', 15); }
+        this.spawnParticles(pg.x, pg.y, '#90EE90', 8);
+        this.bird.vx *= -0.3;
+        this.bird.vy *= -0.3;
+        this.updateHUD();
+      }
+    }
+
+    if (!this.waitingBird && !this.bird.alive) {
+      this._birdDeadTimer = 60;
+    }
+  }
+
+  rectCircle(rect, circ) {
+    const nearX = Math.max(rect.x, Math.min(circ.x, rect.x + rect.w));
+    const nearY = Math.max(rect.y, Math.min(circ.y, rect.y + rect.h));
+    const dx = circ.x - nearX, dy = circ.y - nearY;
+    return dx*dx + dy*dy < circ.r * circ.r;
+  }
+
+  matColor(mat) {
+    return mat === 'stone' ? '#999' : mat === 'wood' ? '#8B4513' : '#ADD8E6';
+  }
+
+  spawnParticles(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = Math.random() * 4 + 1;
+      this.particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2, life: 40, color });
+    }
+  }
+
+  updateParticles() {
+    for (const p of this.particles) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+    }
+    this.particles = this.particles.filter(p => p.life > 0);
+  }
+
+  checkEnd() {
+    const allPigsDead = this.pigs.every(p => !p.alive);
+    const noMoreBirds = this.birdsLeft <= 0 && !this.bird;
+
+    if (allPigsDead) {
+      // WIN
+      const bonus = this.birdsLeft * 100;
+      this.score += bonus;
+      score = this.score;
+      setTimeout(() => this.showOverlay(true), 500);
+    } else if (noMoreBirds) {
+      score = this.score;
+      setTimeout(() => this.showOverlay(false), 500);
+    } else {
+      // next bird
+      this.waitingBird = true;
+    }
+  }
+
+  showOverlay(win) {
+    const ov = document.getElementById('overlay');
+    document.getElementById('overlayTitle').textContent = win ? '🎉 Перемога!' : '😢 Поразка';
+    document.getElementById('overlayScore').textContent = 'Очки: ' + this.score + (win ? ' 🌟' : '');
+    ov.classList.add('show');
+  }
+
+  // ── DRAW ──
+  draw() {
+    const ctx = this.ctx;
+    const W = this.W, H = this.H;
+
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.87);
+    sky.addColorStop(0, '#4A90D9');
+    sky.addColorStop(1, '#87CEEB');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // Clouds
+    this.drawClouds(ctx, W, H);
+
+    // Ground
+    ctx.fillStyle = '#5D8A3C';
+    ctx.fillRect(0, this.groundY, W, H - this.groundY);
+    ctx.fillStyle = '#4CAF50';
+    ctx.fillRect(0, this.groundY, W, 12);
+
+    // Sling
+    this.drawSling(ctx);
+
+    // Trail
+    ctx.globalAlpha = 0.4;
+    for (let i = 0; i < this.trail.length; i++) {
+      const t = this.trail[i];
+      const r = 4 * (i / this.trail.length);
+      ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2);
+      ctx.fillStyle = this.charData.color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Drag guide
+    if (this.dragging && this.waitingBird) {
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      // predict arc
+      const pvx = (this.slingX - this.dragX) * LAUNCH_POWER;
+      const pvy = (this.slingY - this.dragY) * LAUNCH_POWER;
+      ctx.beginPath();
+      let px = this.dragX, py = this.dragY, pvxi = pvx, pvyi = pvy;
+      ctx.moveTo(px, py);
+      for (let i = 0; i < 40; i++) {
+        pvyi += GRAVITY;
+        px += pvxi; py += pvyi;
+        if (py > this.groundY) break;
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Blocks
+    for (const bl of this.blocks) {
+      if (!bl.alive) continue;
+      this.drawBlock(ctx, bl);
+    }
+
+    // Pigs
+    for (const pg of this.pigs) {
+      if (!pg.alive) continue;
+      this.drawPig(ctx, pg);
+    }
+
+    // Bird on sling
+    if (this.waitingBird) {
+      this.drawBird(ctx, this.dragX, this.dragY);
+      // sling rubber bands
+      ctx.strokeStyle = '#5C3317';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(this.slingX - 10, this.slingY - 30);
+      ctx.lineTo(this.dragX, this.dragY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(this.slingX + 10, this.slingY - 30);
+      ctx.lineTo(this.dragX, this.dragY);
+      ctx.stroke();
+    } else if (this.bird && this.bird.alive) {
+      this.drawBird(ctx, this.bird.x, this.bird.y);
+    }
+
+    // Waiting birds (queue)
+    for (let i = 0; i < this.birdsLeft; i++) {
+      const bx = this.slingX - 50 - i * (BIRD_R * 2 + 5);
+      const by = this.groundY - BIRD_R - 4;
+      ctx.globalAlpha = 0.7;
+      this.drawBird(ctx, bx, by, BIRD_R * 0.7);
+      ctx.globalAlpha = 1;
+    }
+
+    // Particles
+    for (const p of this.particles) {
+      ctx.globalAlpha = p.life / 40;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  drawClouds(ctx, W, H) {
+    const clouds = [
+      { x: W*0.15, y: H*0.1, r: 35 },
+      { x: W*0.45, y: H*0.07, r: 28 },
+      { x: W*0.75, y: H*0.13, r: 40 },
+    ];
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (const c of clouds) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+      ctx.arc(c.x + c.r*0.7, c.y - c.r*0.3, c.r*0.75, 0, Math.PI*2);
+      ctx.arc(c.x - c.r*0.7, c.y - c.r*0.2, c.r*0.6, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  drawSling(ctx) {
+    const sx = this.slingX, sy = this.slingY;
+    ctx.strokeStyle = '#5C3317';
+    ctx.lineWidth = 8;
+    // Fork
+    ctx.beginPath();
+    ctx.moveTo(sx, sy + 20);
+    ctx.lineTo(sx, sy - 40);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - 15);
+    ctx.lineTo(sx - 12, sy - 42);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - 15);
+    ctx.lineTo(sx + 12, sy - 42);
+    ctx.stroke();
+    // Base
+    ctx.fillStyle = '#5C3317';
+    ctx.fillRect(sx - 4, sy + 16, 8, 30);
+  }
+
+  drawBird(ctx, x, y, r) {
+    r = r || BIRD_R;
+    if (this.charImg) {
+      ctx.drawImage(this.charImg, x - r, y - r, r*2, r*2);
+    } else {
+      // Fallback: colored circle with emoji
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+      ctx.fillStyle = this.charData.color; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = `${r}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(this.charData.emoji, x, y);
+    }
+  }
+
+  drawBlock(ctx, bl) {
+    const colors = { wood: ['#DEB887', '#8B4513'], stone: ['#A9A9A9','#696969'], glass: ['rgba(173,216,230,0.8)','#87CEEB'] };
+    const [fill, stroke] = colors[bl.mat] || colors.wood;
+    ctx.fillStyle = fill;
+    ctx.fillRect(bl.x, bl.y, bl.w, bl.h);
+    ctx.strokeStyle = stroke; ctx.lineWidth = 2;
+    ctx.strokeRect(bl.x, bl.y, bl.w, bl.h);
+    // cracks
+    if (bl.hp < (bl.mat==='stone'?3:bl.mat==='wood'?2:1)) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bl.x + bl.w*0.3, bl.y + bl.h*0.1);
+      ctx.lineTo(bl.x + bl.w*0.5, bl.y + bl.h*0.6);
+      ctx.lineTo(bl.x + bl.w*0.7, bl.y + bl.h*0.3);
+      ctx.stroke();
+    }
+  }
+
+  drawPig(ctx, pg) {
+    // Body
+    ctx.beginPath(); ctx.arc(pg.x, pg.y, pg.r, 0, Math.PI*2);
+    ctx.fillStyle = '#5CB85C'; ctx.fill();
+    ctx.strokeStyle = '#3D7A3D'; ctx.lineWidth = 2; ctx.stroke();
+    // Eyes
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath(); ctx.arc(pg.x - 7, pg.y - 5, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pg.x + 7, pg.y - 5, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(pg.x - 6, pg.y - 5, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pg.x + 8, pg.y - 5, 3, 0, Math.PI*2); ctx.fill();
+    // Snout
+    ctx.fillStyle = '#90EE90';
+    ctx.beginPath(); ctx.ellipse(pg.x, pg.y + 6, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#3D7A3D'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#3D7A3D';
+    ctx.beginPath(); ctx.arc(pg.x - 3, pg.y + 6, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pg.x + 3, pg.y + 6, 2, 0, Math.PI*2); ctx.fill();
+    // HP
+    if (pg.hp < 3) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('💢', pg.x, pg.y - pg.r - 8);
+    }
+  }
+}
+
+// ─── RESIZE ───────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (game && game.running) {
+    const c = document.getElementById('gameCanvas');
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+    game.W = c.width; game.H = c.height;
+    game.slingX = c.width * SLING_X_RATIO;
+    game.slingY = c.height * SLING_Y_RATIO;
+    game.groundY = c.height * 0.87;
+    // rescale entities
+    const ld = game.levelData;
+    game.blocks = ld.blocks.map(b => ({
+      x: b.x * c.width, y: b.y * c.height,
+      w: b.w * c.width, h: b.h * c.height,
+      mat: b.mat, hp: b.mat==='stone'?3:b.mat==='wood'?2:1, alive: true
+    }));
+    game.pigs = ld.pigs.map(p => ({ x: p.x*c.width, y: p.y*c.height, r: PIG_R, hp: 3, alive: true }));
+    game.bird = null; game.waitingBird = true;
+  }
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+loadCharImages(() => buildSelectScreen());
+</script>
+</body>
+</html>
