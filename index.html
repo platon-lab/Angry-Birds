@@ -121,6 +121,7 @@ const CHARS = [
   { name: 'Junior',  file: 'Junior.png',  emoji: '🐣', color: '#F39C12' },
   { name: 'Fil',     file: 'Fil.png',     emoji: '🐘', color: '#9B59B6' },
   { name: 'Milka',   file: 'Milka.png',   emoji: '🐮', color: '#1ABC9C' },
+  { name: 'Bark',   file: 'Bark.png',   emoji: '🍫', color: '#1ABC9C' },
 ];
 
 const GRAVITY = 0.35;
@@ -176,43 +177,6 @@ const LEVELS = [
     ]
   },
 ];
-
-// ─── RANDOM LEVEL GENERATOR ───────────────────────────────────────────────
-function generateRandomLevel(levelNum) {
-  const rand = (min, max) => Math.random() * (max - min) + min;
-  const randInt = (min, max) => Math.floor(rand(min, max + 1));
-  const mats = ['wood', 'stone', 'glass'];
-
-  // Scale difficulty with level number
-  const difficulty = Math.min(levelNum - LEVELS.length, 10);
-  const numPigs = randInt(1, Math.min(2 + Math.floor(difficulty / 2), 5));
-  const numBirds = numPigs * 2 + randInt(1, 3);
-  const numBlocks = randInt(2 + difficulty, 5 + difficulty * 2);
-
-  const pigs = [];
-  const blocks = [];
-
-  // Generate pigs spread across right half
-  for (let i = 0; i < numPigs; i++) {
-    const px = rand(0.55, 0.88);
-    const py = rand(0.68, 0.80);
-    pigs.push({ x: px, y: py });
-  }
-
-  // Generate blocks — towers/platforms around pigs
-  for (let i = 0; i < numBlocks; i++) {
-    const mat = mats[randInt(0, 2)];
-    const isVertical = Math.random() > 0.5;
-    const bw = isVertical ? rand(0.03, 0.06) : rand(0.06, 0.14);
-    const bh = isVertical ? rand(0.08, 0.18) : rand(0.03, 0.06);
-    const bx = rand(0.50, 0.88 - bw);
-    // place on ground or stacked
-    const by = rand(0.72, 0.86 - bh);
-    blocks.push({ x: bx, y: by, w: bw, h: bh, mat });
-  }
-
-  return { birds: numBirds, pigs, blocks };
-}
 
 // ─── STATE ────────────────────────────────────────────────────────────────
 let selectedChar = 0;
@@ -275,7 +239,7 @@ function restartLevel() {
 
 function nextLevel() {
   document.getElementById('overlay').classList.remove('show');
-  currentLevel = currentLevel + 1;
+  currentLevel = (currentLevel + 1) % LEVELS.length;
   if (game) game.stop();
   launchLevel();
 }
@@ -284,10 +248,7 @@ function launchLevel() {
   const canvas = document.getElementById('gameCanvas');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  const levelData = currentLevel < LEVELS.length
-    ? LEVELS[currentLevel]
-    : generateRandomLevel(currentLevel);
-  game = new Game(canvas, levelData, CHARS[selectedChar], charImages[selectedChar]);
+  game = new Game(canvas, LEVELS[currentLevel], CHARS[selectedChar], charImages[selectedChar]);
   game.start();
 }
 
